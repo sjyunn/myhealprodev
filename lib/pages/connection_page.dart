@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/bluetooth_service.dart';
+import 'dart:async'; // StreamSubscription을 위해 필요합니다.
 
 class ConnectionPage extends StatefulWidget {
   const ConnectionPage({super.key});
@@ -13,17 +14,42 @@ class ConnectionPage extends StatefulWidget {
 
 class _ConnectionPageState extends State<ConnectionPage> {
   final BluetoothService _bluetoothService = BluetoothService();
+  StreamSubscription<bool>? _connectionSubscription;
   bool _isConnecting = false;
   bool _isTimedOut = false; // 연결 시간 초과 상태
 
   @override
   void initState() {
     super.initState();
-    // 화면 로드 후 바로 연결 시도
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startConnectionAttempt();
+
+    // 1. 연결 상태 스트림 구독 시작
+    _connectionSubscription = _bluetoothService.isConnectedStream.listen((isConnected) {
+      // 연결이 성공했을 때만 실행
+      if (isConnected) {
+        // 2. Navigator가 준비된 후 안전하게 화면 전환 (핵심 수정 부분)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // 위젯이 여전히 트리에 존재하는지 확인
+          if (mounted) {
+            // ControllerPage로 이동하고 현재 페이지를 대체합니다.
+            Navigator.of(context).pushReplacementNamed('/controller');
+          }
+        });
+      }
     });
+
+    // ⬇️⬇️⬇️ 이 부분이 가장 중요합니다. ⬇️⬇️⬇️
+    // 2. 페이지가 로드되자마자 즉시 연결 시도 함수를 호출합니다.
+    _startConnectionAttempt();
+    // ⬆️⬆️⬆️ 이 줄을 추가해야 합니다. ⬆️⬆️⬆️
   }
+
+  @override
+  void dispose() {
+    // 3. 위젯이 사라질 때 구독을 취소하여 메모리 누수 방지
+    _connectionSubscription?.cancel();
+    super.dispose();
+  }
+
 
   // 연결 시도 로직
   void _startConnectionAttempt() async {

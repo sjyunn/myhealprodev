@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fb;
+//import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fb;
 
 import '../widgets/tes_control.dart';
 import '../services/bluetooth_service.dart';
@@ -41,10 +41,10 @@ class _ControllerPageState extends State<ControllerPage> {
     super.initState();
 
     // 블루투스 연결 상태 변화를 구독하여 UI 상태를 업데이트
-    _bluetoothService.connectionStateStream.listen((state) {
+    _bluetoothService.isConnectedStream.listen((state) {
       if(mounted) {
         setState(() {
-          isConnected = state == fb.BluetoothConnectionState.connected;
+          isConnected = state;
         });
       }
     });

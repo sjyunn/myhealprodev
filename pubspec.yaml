@@ -35,7 +35,10 @@ dependencies:
   sleek_circular_slider: ^2.0.1 # TES Control 구현을 위한 패키지
 
   # === 블루투스 통신 패키지 추가 ===
-  flutter_blue_plus: ^1.29.15 # 최신 안정 버전 사용
+  # flutter_blue_plus: ^1.29.15 # 최신 안정 버전 사용
+  # ⬇️ 새로운 BLE 패키지 추가 ⬇️
+  flutter_reactive_ble: ^5.0.0
+  rxdart: ^0.27.7 # 스트림 관리를 용이하게 하기 위해 추가
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
