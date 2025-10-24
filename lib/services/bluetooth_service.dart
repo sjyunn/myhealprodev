@@ -175,7 +175,7 @@ class BluetoothService {
     final int volumeInt = data[10];     // 볼륨 (Index 10)
 
     // ⬇️ 배터리 잔량: Index 12로 확정 (프로토콜 명세와 19바이트 길이를 고려) ⬇️
-     final int battery = data[12];    // 배터리 잔량
+     final int battery = data[13];    // 배터리 잔량
     //final int battery = (data[11] << 8) | data[12];
 
     // ⬆️ 최종 파싱 인덱스 적용 ⬆️

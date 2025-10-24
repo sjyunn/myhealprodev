@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 //import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fb;
 
+import 'pages/main_shell.dart';
 import 'pages/connection_page.dart';
 import 'pages/controller_page.dart';
 import 'services/bluetooth_service.dart';
@@ -51,7 +52,7 @@ class _HeadsetControlAppState extends State<HeadsetControlApp> {
           initialRoute: '/',
           routes: {
             '/': (context) => const ConnectionPage(),
-            '/controller': (context) => const ControllerPage(),
+            '/controller': (context) => const MainShell(), // ◀️ 이 부분이 MainShell이어야 합니다.
           },
 
           // Navigator 충돌을 피하고, 연결 성공 시 자동으로 ControllerPage로 이동합니다.
