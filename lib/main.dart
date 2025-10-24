@@ -7,8 +7,15 @@ import 'pages/main_shell.dart';
 import 'pages/connection_page.dart';
 import 'pages/controller_page.dart';
 import 'services/bluetooth_service.dart';
+import 'utils/database_manager.dart'; // ◀️ DatabaseManager 임포트 추가
 
-void main() {
+Future<void> main() async { // ◀️ main 함수를 async로 변경
+  // Flutter 엔진 바인딩 초기화 (main이 async일 때 필수)
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // ⬇️⬇️⬇️ Hive 데이터베이스 초기화 ⬇️⬇️⬇️
+  await DatabaseManager.initialize();
+  // ⬆️⬆️⬆️ Hive 데이터베이스 초기화 ⬆️⬆️⬆️
   runApp(const HeadsetControlApp());
 }
 
