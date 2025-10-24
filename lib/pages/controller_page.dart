@@ -7,6 +7,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../widgets/tes_control.dart';
 import '../services/bluetooth_service.dart';
 import '../types.dart'; // 정의한 Mode enum 사용
+import 'dart:async';
+
+import '../services/command_model.dart';
 
 class ControllerPage extends StatefulWidget {
   const ControllerPage({super.key});
@@ -20,12 +23,14 @@ class _ControllerPageState extends State<ControllerPage> {
   // 블루투스 서비스 및 상태 변수
   final BluetoothService _bluetoothService = BluetoothService();
 
+  StreamSubscription<Map<String, int>>? _tesStateSubscription;
+
   bool isConnected = false;
   Mode activeMode = Mode.healing;
   bool isPlaying = true;
-  double tesLevel = 10.0;
-  double volume = 40.0;
-  final int batteryLevel = 92;
+  double tesLevel = 0.0;
+  double volume = 7.0;
+  int batteryLevel = 92;
 
   final Color mainColor = const Color(0xFF34d399); // Tailwind emerald-500
 
@@ -37,22 +42,58 @@ class _ControllerPageState extends State<ControllerPage> {
   // ------------------------------------
 
   @override
+  @override
   void initState() {
     super.initState();
 
-    // 블루투스 연결 상태 변화를 구독하여 UI 상태를 업데이트
-    _bluetoothService.isConnectedStream.listen((state) {
-      if(mounted) {
+    // 1. BLE 연결 상태 구독 (Bool 값)
+    // ⬇️ isConnectedStream을 구독하고 isConnected 상태를 업데이트합니다. ⬇️
+    _bluetoothService.isConnectedStream.listen((isConnectedStatus) { // ◀️ 변수명을 명확히 함
+      if (mounted) {
         setState(() {
-          isConnected = state;
+          isConnected = isConnectedStatus; // ◀️ 상태를 올바른 변수(isConnectedStatus)로 업데이트
         });
       }
     });
 
-    // 이 페이지는 ConnectionPage에서 넘어올 때만 연결 시도를 합니다.
-    // 이 페이지에 들어왔다면 연결 상태는 이미 ConnectionPage에 의해 결정되었거나,
-    // 사용자가 '넘어가기'를 눌러 비활성화 상태로 진입한 것입니다.
-    // 이 페이지 진입 시 scanAndConnect()는 호출하지 않습니다. (ConnectionPage가 담당)
+    // 2. Heartbeat 데이터 상태 구독 (Map 값)
+    // ⬇️ Heartbeat 데이터를 받아와 UI 상태 변수들을 업데이트합니다. ⬇️
+    _tesStateSubscription = _bluetoothService.tesStateStream.listen((tesState) {
+      if (mounted) {
+        setState(() {
+          // Heartbeat 데이터로 UI 상태 변수 갱신
+          tesLevel = tesState['intensity']?.toDouble() ?? tesLevel;
+          batteryLevel = tesState['battery'] ?? batteryLevel; // ◀️ 올바른 변수 사용
+          final int isPlayingInt = tesState['isPlaying'] ?? 0;
+          isPlaying = isPlayingInt == 1; // ◀️ isPlaying 멤버 변수 업데이트 (0=false, 1=true)
+
+          // 1. Map에서 값을 가져옵니다. (Map<String, int> 타입이므로 as int? 필요 없음)
+          final int? receivedVolume = tesState['volume'];
+          // print('🔍 DEBUG: Heartbeat Stream 수신됨.');
+          // print('🔍 DEBUG: receivedVolume Value: $receivedVolume');
+          // print('🔍 DEBUG: receivedVolume Type: ${receivedVolume.runtimeType}');
+
+          // 2. 받은 값이 null이 아닐 때만 업데이트합니다.
+          if (receivedVolume != null) {
+            // 2. double 변환 후 할당 (double 타입으로 통일)
+            volume = receivedVolume.toDouble().clamp(0.0, 15.0);
+            // print('🔍 DEBUG: UI Volume Updated to: $volume');
+          } else {
+            // print('🔍 DEBUG: receivedVolume is NULL. UI not updated.');
+          }
+
+          final int modeInt = tesState['mode'] ?? 0; // ◀️ 변수 정의
+          // 로그에서 확인된 매핑 (1: 학습, 2: 수면, 3: 힐링)에 따라 activeMode 설정
+          if (modeInt == 3) {
+            activeMode = Mode.healing;
+          } else if (modeInt == 2) {
+            activeMode = Mode.sleep;
+          } else if (modeInt == 1) {
+            activeMode = Mode.study;
+          }
+        });
+      }
+    });
   }
 
   // ----------------------------------------------------
@@ -116,7 +157,22 @@ class _ControllerPageState extends State<ControllerPage> {
           children: [
             GestureDetector(
               onTap: () {
-                setState(() => activeMode = mode['id'] as Mode);
+                final newMode = mode['id'] as Mode;
+                setState(() => activeMode = newMode);
+
+                // ⬇️ 모드 변경 커맨드 전송 ⬇️
+                TesCommandType commandType;
+                if (newMode == Mode.healing) {
+                  commandType = TesCommandType.setModeHealing; // CMD-0x01
+                } else if (newMode == Mode.study) {
+                  commandType = TesCommandType.setModeStudy;   // CMD-0x02
+                } else { // Mode.sleep
+                  commandType = TesCommandType.setModeSleep;    // CMD-0x03
+                }
+
+                _bluetoothService.sendTesCommand(
+                    TesCommand(type: commandType)
+                );
               },
               child: Container(
                 width: 64, height: 64,
@@ -164,7 +220,17 @@ class _ControllerPageState extends State<ControllerPage> {
           ),
           child: InkWell(
             onTap: () {
-              setState(() => isPlaying = !isPlaying);
+              // 1. 현재 isPlaying 상태를 확인하여 반대 명령을 결정합니다.
+              final commandType = isPlaying ? TesCommandType.tensStop : TesCommandType.tensStart;
+
+              // ⬇️ 수정: Write 명령 전송 로직 추가 ⬇️
+              _bluetoothService.sendTesCommand(
+                  TesCommand(type: commandType) // CMD-0x04 또는 CMD-0x05 전송
+              );
+
+              // 2. ⚠️ setState(() => isPlaying = !isPlaying); 이 줄은 삭제합니다.
+              // Heartbeat 데이터 수신을 통해 디바이스 상태와 동기화되므로,
+              // 앱에서 자체적으로 상태를 변경하면 안 됩니다.
             },
             customBorder: const CircleBorder(),
             child: Center(
@@ -213,7 +279,19 @@ class _ControllerPageState extends State<ControllerPage> {
         // TES Control: 수평 슬라이더 사용
         TesControl(
           value: tesLevel,
-          onChange: (newVal) => setState(() => tesLevel = newVal),
+          onChange: (newVal) {
+            setState(() => tesLevel = newVal);
+
+            // ⬇️ TENS 세기 변경 커맨드 전송 ⬇️
+            _bluetoothService.sendTesCommand(
+              TesCommand(
+                // CMD-0x0C (이어폰 음량 설정)으로 세기를 조절한다는 가정 하에 전송합니다.
+                // 실제 프로토콜에 따라 정확한 CMD (예: CMD-0x09)로 변경해야 합니다.
+                type: TesCommandType.setVolume,
+                value: newVal.round(),
+              ),
+            );
+          },
         ),
 
         const SizedBox(height: 20),
@@ -234,9 +312,20 @@ class _ControllerPageState extends State<ControllerPage> {
                 ),
                 child: Slider(
                   min: 0,
-                  max: 100,
-                  value: volume,
-                  onChanged: (newVal) => setState(() => volume = newVal),
+                  max: 15.0, // ◀️ double 값 명시 (Flutter Slider 요구 사항)
+                  value: volume, // ◀️ 수정: volume 변수가 double이므로, toDouble() 제거
+                  onChanged: (newVal) {
+                    // 1. 앱 UI 상태 업데이트: double 값을 그대로 저장 (동기화 Read 로직과 일치)
+                    setState(() => volume = newVal); // ◀️ 수정: round() 제거
+
+                    // 2. 볼륨 변경 커맨드 전송 (Write): 디바이스는 정수(0-15)를 받으므로 round() 사용
+                    _bluetoothService.sendTesCommand(
+                      TesCommand(
+                        type: TesCommandType.setVolume, // CMD-0x0C
+                        value: newVal.round(), // ◀️ 전송 시에만 정수로 변환하여 디바이스에 Write
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

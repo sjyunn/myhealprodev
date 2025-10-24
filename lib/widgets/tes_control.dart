@@ -80,7 +80,7 @@ class _TesControlState extends State<TesControl> {
               showValueIndicator: ShowValueIndicator.never,
             ),
             child: Slider(
-              min: 1,
+              min: 0,
               max: numSteps.toDouble(),
               divisions: numSteps - 1, // 1부터 15까지 15단계 (14칸)
               value: _currentValue,
