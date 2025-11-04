@@ -20,19 +20,22 @@ class DailyRecordAdapter extends TypeAdapter<DailyRecord> {
       date: fields[0] as DateTime,
       sleepDurationMinutes: fields[1] as int,
       totalHealingDuration: fields[2] as int,
+      tensCount: fields[3] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, DailyRecord obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.date)
       ..writeByte(1)
       ..write(obj.sleepDurationMinutes)
       ..writeByte(2)
-      ..write(obj.totalHealingDuration);
+      ..write(obj.totalHealingDuration)
+      ..writeByte(3)
+      ..write(obj.tensCount);
   }
 
   @override
